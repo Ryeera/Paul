@@ -1,0 +1,10 @@
+[08.02.21 22:50:52] [INFO] Starting Paul v0.1...
+[08.02.21 22:50:52] [INFO] Setting up Configuration...
+[08.02.21 22:50:52] [SEVERE] Couldn't read config-file! Halting...
+[08.02.21 22:50:52] [EXCEPTION] paul.json (The system cannot find the file specified)
+[08.02.21 22:50:52] [STACKTRACE] at java.io.FileInputStream.open0:-2
+[08.02.21 22:50:52] [STACKTRACE] at java.io.FileInputStream.open:195
+[08.02.21 22:50:52] [STACKTRACE] at java.io.FileInputStream.<init>:138
+[08.02.21 22:50:52] [STACKTRACE] at java.io.FileReader.<init>:72
+[08.02.21 22:50:52] [STACKTRACE] at de.Ryeera.PaulBot.JSONUtils.readJSON:15
+[08.02.21 22:50:52] [STACKTRACE] at de.Ryeera.PaulBot.Paul.main:64
