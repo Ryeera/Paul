@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.Ryeera</groupId>
   <artifactId>Paul</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>0.2.2</version>
   <name>Paul</name>
   <repositories>
     <repository>
@@ -27,11 +27,6 @@
       <groupId>org.json</groupId>
       <artifactId>json</artifactId>
       <version>20201115</version>
-    </dependency>
-    <dependency>
-      <groupId>mysql</groupId>
-      <artifactId>mysql-connector-java</artifactId>
-      <version>8.0.22</version>
     </dependency>
     <dependency>
       <groupId>commons-io</groupId>

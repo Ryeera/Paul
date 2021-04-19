@@ -43,7 +43,7 @@ import net.dv8tion.jda.api.requests.restaction.ChannelAction;
 
 public class Paul extends ListenerAdapter{
 	
-	private static final String VERSION = "0.2.1";
+	private static final String VERSION = "0.2.2";
 	
 	private static DragoLogger logger;
 	
@@ -120,7 +120,7 @@ public class Paul extends ListenerAdapter{
 					final boolean isBackup = participants.getJSONObject(i).getInt("seed") == 0;
 					final boolean isPlaced = participants.getJSONObject(i).getInt("position") > 0;
 					final String pronouns = participants.getJSONObject(i).getString("pronoun");
-					final String pronoun1 = pronouns.substring(0, pronouns.indexOf('/'));
+					final String pronoun1 = (pronouns.contains("He") || pronouns.contains("he") ? "He" : (pronouns.contains("She") || pronouns.contains("she") ? "She" : "They"));
 					final String pnstate = pronoun1 + (pronoun1.equals("they") ? " are" : " is");
 					guild.retrieveMemberById(userid).queue(member -> {
 						if (isArchived) {
