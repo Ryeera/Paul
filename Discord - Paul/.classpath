@@ -35,7 +35,6 @@
 			<attribute name="maven.pomderived" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="/files/Files/DragoLibs/SQLConnector.jar"/>
 	<classpathentry kind="lib" path="/files/Files/DragoLibs/DragoLogger.jar"/>
 	<classpathentry kind="lib" path="/files/Files/DragoLibs/JSONUtils.jar"/>
 	<classpathentry kind="output" path="target/classes"/>
