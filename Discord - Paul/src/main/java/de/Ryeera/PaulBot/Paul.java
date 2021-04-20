@@ -43,7 +43,7 @@ import net.dv8tion.jda.api.requests.restaction.ChannelAction;
 
 public class Paul extends ListenerAdapter{
 	
-	private static final String VERSION = "0.2.2";
+	private static final String VERSION = "0.2.3";
 	
 	private static DragoLogger logger;
 	
@@ -466,6 +466,7 @@ public class Paul extends ListenerAdapter{
 					Category cat = guild.getCategoryById(matchroom.getCatID());
 					for(VoiceChannel vc : cat.getVoiceChannels()) {
 						for(Member mem : vc.getMembers()) {
+							if (mem.equals(member)) continue;
 							mem.mute(true).queue();
 						}
 					}
@@ -482,6 +483,7 @@ public class Paul extends ListenerAdapter{
 					Category cat = guild.getCategoryById(matchroom.getCatID());
 					for(VoiceChannel vc : cat.getVoiceChannels()) {
 						for(Member mem : vc.getMembers()) {
+							if (mem.equals(member)) continue;
 							mem.mute(false).queue();
 						}
 					}
