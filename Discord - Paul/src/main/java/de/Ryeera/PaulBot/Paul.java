@@ -21,6 +21,7 @@ import org.json.JSONObject;
 import de.Ryeera.libs.DragoLogger;
 import de.Ryeera.libs.JSONUtils;
 import de.Ryeera.libs.Utils;
+import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.MessageBuilder;
@@ -31,6 +32,7 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.GuildChannel;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.PermissionOverride;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.TextChannel;
@@ -40,10 +42,11 @@ import net.dv8tion.jda.api.events.message.guild.GuildMessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.requests.restaction.ChannelAction;
+import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 public class Paul extends ListenerAdapter{
 	
-	private static final String VERSION = "0.2.3";
+	private static final String VERSION = "0.3.0";
 	
 	private static DragoLogger logger;
 	
@@ -52,9 +55,13 @@ public class Paul extends ListenerAdapter{
 	private static JSONObject config = new JSONObject();
 	private static JSONObject matchrooms = new JSONObject();
 	private static JDA jda;
+	
+	private static List<Role> adminRoles = new ArrayList<>();
+	private static List<Role> createRoles = new ArrayList<>();
+	private static List<Role> writeRoles = new ArrayList<>();
+	private static List<Role> readRoles = new ArrayList<>();
 
 	public static void main(String[] args) {
-		matchrooms.has("MATCHROOM");
 		try{
 			new File("logs").mkdirs();
 			logger = new DragoLogger(new File("logs" + File.separator + "Paul_" + Utils.formatTime(System.currentTimeMillis(), "yyyyMMdd_HHmmss") + ".log"));
@@ -63,6 +70,7 @@ public class Paul extends ListenerAdapter{
 			System.exit(1);
 		}
 		logger.log("INFO", "Starting Paul v" + VERSION + "...");
+		
 		logger.log("INFO", "Setting up Configuration...");
 		try {
 			config = JSONUtils.readJSON(configFile);
@@ -71,6 +79,7 @@ public class Paul extends ListenerAdapter{
 			logger.logStackTrace(e);
 			System.exit(-1);
 		}
+		
 		logger.log("INFO", "Setting up active Matchrooms...");
 		if (!matchroomFile.exists()) {
 			try {
@@ -88,22 +97,51 @@ public class Paul extends ListenerAdapter{
 			logger.logStackTrace(e);
 			System.exit(-3);
 		}
+		
 		logger.log("INFO", "Setting up Discord-Connection...");
-		JDABuilder builder = JDABuilder.createDefault(config.getString("token"));
-		builder.enableIntents(GatewayIntent.GUILD_MEMBERS);
+		JDABuilder builder = JDABuilder.create(config.getString("token"), EnumSet.allOf(GatewayIntent.class));
+		builder.enableCache(CacheFlag.ACTIVITY, CacheFlag.CLIENT_STATUS, CacheFlag.EMOTE, CacheFlag.MEMBER_OVERRIDES, CacheFlag.VOICE_STATE);
 		builder.setActivity(Activity.watching("Bill play Beat Saber"));
 		builder.setBulkDeleteSplittingEnabled(false);
 		builder.addEventListeners(new Paul());
 		try {
 			jda = builder.build();
 			jda.awaitReady();
+			for (Guild guild : jda.getGuilds()) {
+				guild.loadMembers().onSuccess(m -> {
+					logger.log("INFO", "Loaded " + m.size() + " members for " + guild.getName());
+				});
+			}
 			logger.log("INFO", "Bot started!");
 		} catch (LoginException | InterruptedException e) {
 			e.printStackTrace();
 		}
+		
+		logger.log("INFO", "Setting up matchroom-roles...");
+		JSONObject permissions = config.getJSONObject("permissions").getJSONObject("matchroom");
+		readRoles = new ArrayList<>();
+		for(int i = 0; i < permissions.getJSONArray("read").length(); i++) {
+			readRoles.add(jda.getRoleById(permissions.getJSONArray("read").getString(i)));
+		}
+		writeRoles = new ArrayList<>();
+		for(int i = 0; i < permissions.getJSONArray("write").length(); i++) {
+			writeRoles.add(jda.getRoleById(permissions.getJSONArray("write").getString(i)));
+		}
+		createRoles = new ArrayList<>();
+		for(int i = 0; i < permissions.getJSONArray("create").length(); i++) {
+			Role role = jda.getRoleById(permissions.getJSONArray("create").getString(i));
+			createRoles.add(role);
+		}
+		adminRoles = new ArrayList<>();
+		for(int i = 0; i < permissions.getJSONArray("admin").length(); i++) {
+			Role role = jda.getRoleById(permissions.getJSONArray("admin").getString(i));
+			adminRoles.add(role);
+		}
+		
+		logger.log("INFO", "Setting up Participant-Checker...");
 		Executors.newScheduledThreadPool(1).scheduleAtFixedRate(() -> {
-			logger.log("INFO", "Checking tournament participants...");
 			try {
+				logger.log("INFO", "Checking tournament participants...");
 				String currentTourney = config.optString("tourney");
 				if (currentTourney.length() < 2) return;
 				JSONObject tournament = new HTTPSUtils(new URL("https://beatkhana.com/api/tournament/" + currentTourney)).getJSONArray().getJSONObject(0);
@@ -202,11 +240,25 @@ public class Paul extends ListenerAdapter{
 					config.put("tourney", "");
 					JSONUtils.writeJSON(config, configFile);
 				}
-			} catch (IOException e) {
+				logger.log("INFO", "Done checking tournament participants!");
+			} catch (Exception e) {
+				logger.log("ERROR", "Error while checking participants!");
 				logger.logStackTrace(e);
 			}
-			logger.log("INFO", "Done checking tournament participants!");
-		}, 1, 30, TimeUnit.MINUTES);
+		}, 30, 30, TimeUnit.MINUTES);
+		logger.log("INFO", "Paul started!");
+	}
+	
+	public void addReadPerms(Member member, Category category) {
+		category.putPermissionOverride(member).grant(EnumSet.of(
+				Permission.VIEW_CHANNEL, 
+				Permission.MESSAGE_WRITE, 
+				Permission.VOICE_CONNECT,
+				Permission.VOICE_SPEAK)).queue();
+	}
+	
+	public void removeReadPerms(Member member, Category category) {
+		category.getPermissionOverride(member).delete().queue();
 	}
 	
 	@Override
@@ -214,35 +266,25 @@ public class Paul extends ListenerAdapter{
 		Guild guild = event.getGuild();
 		TextChannel channel = event.getChannel();
 		Member member = event.getMember();
-		String message = event.getMessage().getContentDisplay().toLowerCase();
+		String message = event.getMessage().getContentRaw();
 		if (message.startsWith(config.getString("prefix"))) {
 			message = message.substring(config.getString("prefix").length());
-			if (message.startsWith("matchroom ")) {
-				message = message.substring(10);
-				JSONObject permissions = config.getJSONObject("permissions").getJSONObject("matchroom");
-				List<Role> readRoles = new ArrayList<>();
-				for(int i = 0; i < permissions.getJSONArray("read").length(); i++) {
-					readRoles.add(jda.getRoleById(permissions.getJSONArray("read").getString(i)));
-				}
-				List<Role> writeRoles = new ArrayList<>();
-				for(int i = 0; i < permissions.getJSONArray("write").length(); i++) {
-					writeRoles.add(jda.getRoleById(permissions.getJSONArray("write").getString(i)));
-				}
-				List<Role> createRoles = new ArrayList<>();
+			String [] args = message.split(" ");
+			//TODO: DEBUG
+			logger.log("DEBUG", "args = ");
+			for (String s : args) {
+				logger.log("DEBUG", s);
+			}
+			if (args[0].equalsIgnoreCase("matchroom") || args[0].equalsIgnoreCase("mr")) {
 				boolean hasCreatePermission = false;
-				for(int i = 0; i < permissions.getJSONArray("create").length(); i++) {
-					Role role = jda.getRoleById(permissions.getJSONArray("create").getString(i));
-					createRoles.add(role);
+				for(Role role : createRoles) {
 					if(member.getRoles().contains(role)) {
 						hasCreatePermission = true;
 						break;
 					}
 				}
-				List<Role> adminRoles = new ArrayList<>();
 				boolean hasAdminPermission = false;
-				for(int i = 0; i < permissions.getJSONArray("admin").length(); i++) {
-					Role role = jda.getRoleById(permissions.getJSONArray("admin").getString(i));
-					adminRoles.add(role);
+				for(Role role : adminRoles) {
 					if(member.getRoles().contains(role)) {
 						hasAdminPermission = true;
 						hasCreatePermission = true;
@@ -251,12 +293,12 @@ public class Paul extends ListenerAdapter{
 				}
 				MatchRoom matchroom = getMatchroom(channel.getParent().getId());
 				boolean isMatchroom = matchroom != null;
-				if (message.startsWith("create")) {
-					message = message.substring(7);
+				if (args[1].equalsIgnoreCase("create") || args[1].equalsIgnoreCase("make")) {
 					if (!hasCreatePermission) {
 						channel.sendMessage("You are missing a role with the permission `matchroom.create`!").queue();
 						return;
 					}
+					
 					if(!message.contains("@")) {
 						channel.sendMessage("You need to mention at least one member! `" + config.getString("prefix") + "matchroom create [Room-Name] [@Mention] <@Mention...>`").queue();
 						return;
@@ -265,7 +307,24 @@ public class Paul extends ListenerAdapter{
 						channel.sendMessage("You didn't specify a name for the matchroom! `" + config.getString("prefix") + "matchroom create [Room-Name] [@Mention] <@Mention...>`").queue();
 						return;
 					}
-					String channelname = message.substring(0, message.indexOf(" @"));
+					String channelname = args[2];
+					int nextid = 3;
+					for (int i = 3; i < args.length; i++) {
+						if (args[i].startsWith("<@!")) {
+							nextid = i;
+							break;
+						}
+						try {
+							if (guild.getMemberById(args[i]) != null) {
+								nextid = i;
+								break;
+							} else {
+								channelname += " " + args[i];
+							}
+						} catch (NumberFormatException e) {
+							channelname += " " + args[i];
+						}
+					}
 					ChannelAction<Category> action = guild.createCategory(channelname);
 					action.addPermissionOverride(guild.getPublicRole(), null, EnumSet.of(
 							Permission.MANAGE_PERMISSIONS, 
@@ -302,13 +361,6 @@ public class Paul extends ListenerAdapter{
 								Permission.VOICE_MOVE_OTHERS, 
 								Permission.PRIORITY_SPEAKER), null);
 					}
-					for(Member player : event.getMessage().getMentionedMembers()) {
-						action.addPermissionOverride(player, EnumSet.of(
-								Permission.VIEW_CHANNEL, 
-								Permission.MESSAGE_WRITE, 
-								Permission.VOICE_CONNECT,
-								Permission.VOICE_SPEAK), null);
-					}
 					action.addPermissionOverride(member, EnumSet.of(
 							Permission.VIEW_CHANNEL, 
 							Permission.MESSAGE_WRITE, 
@@ -320,8 +372,27 @@ public class Paul extends ListenerAdapter{
 							Permission.VOICE_MOVE_OTHERS,
 							Permission.PRIORITY_SPEAKER
 							), null);
+					for (int i = nextid; i < args.length; i++) {
+						if (args[i].startsWith("<@&")) {
+							continue;
+						}
+						if (args[i].startsWith("<@!")) {
+							args[i] = args[i].substring(3, args[i].length()-1);
+						}
+						try {
+							Member player = guild.getMemberById(args[i]);
+							if (player != null) {
+								action.addPermissionOverride(player, EnumSet.of(
+										Permission.VIEW_CHANNEL, 
+										Permission.MESSAGE_WRITE, 
+										Permission.VOICE_CONNECT,
+										Permission.VOICE_SPEAK), null);
+							}
+						} catch (NumberFormatException e) {}
+					}
+					final String cname = channelname;
 					action.queue(c -> {
-						c.createVoiceChannel(channelname).queue(vc -> {
+						c.createVoiceChannel(cname).queue(vc -> {
 							try {
 								guild.moveVoiceMember(member, vc).queue();
 							} catch (IllegalStateException ex) {}
@@ -331,23 +402,23 @@ public class Paul extends ListenerAdapter{
 								} catch (IllegalStateException ex) {}
 							}
 						});
-						c.createTextChannel(channelname).queue(tc -> {
+						c.createTextChannel(cname).queue(tc -> {
 							MessageBuilder mb = new MessageBuilder();
 							mb.append("This is the matchroom managed by ");
 							mb.append(member);
 							mb.append(".\n The players in this matchroom are:\n");
-							for(Member player : event.getMessage().getMentionedMembers()) {
-								mb.append(player);
+							for(PermissionOverride or : tc.getMemberPermissionOverrides()) {
+								mb.append(or.getMember().getAsMention());
 								mb.append("\n");
 							}
 							mb.append("**Please connect to the Voice-channel to get started!**");
 							tc.sendMessage(mb.build()).queue();
-							jda.getTextChannelById(config.getString("log-channel")).sendMessage(member.getAsMention() + " has created the matchroom `" + channelname + "`").queue();
+							jda.getTextChannelById(config.getString("log-channel")).sendMessage(member.getAsMention() + " has created the matchroom `" + cname + "`").queue();
 						});
 						addMatchroom(c.getId(), member);
-						logger.log("INFO", member.getUser().getAsTag() + " created matchroom " + channelname);
+						logger.log("INFO", member.getUser().getAsTag() + " created matchroom " + cname);
 					});
-				} else if (message.equals("close")) {
+				} else if (args[1].equalsIgnoreCase("close")) {
 					if (!isMatchroom) {
 						channel.sendMessage("You need to be in an active matchroom to close it!").queue();
 						return;
@@ -376,7 +447,7 @@ public class Paul extends ListenerAdapter{
 						jda.getTextChannelById(config.getString("log-channel")).sendMessage(member.getAsMention() + " has closed the matchroom `" + cat.getName() + "`").queue();
 					});
 					logger.log("INFO", member.getUser().getAsTag() + " closed matchroom " + channel.getParent().getName());
-				} else if (message.equals("delete")) {
+				} else if (args[1].equalsIgnoreCase("delete")) {
 					if (!isMatchroom) {
 						channel.sendMessage("You need to be in an active matchroom to delete it!").queue();
 						return;
@@ -400,7 +471,7 @@ public class Paul extends ListenerAdapter{
 						jda.getTextChannelById(config.getString("log-channel")).sendMessage(member.getAsMention() + " has deleted the matchroom `" + cat.getName() + "`").queue();
 					});
 					logger.log("INFO", member.getUser().getAsTag() + " deleted matchroom " + channel.getParent().getName());
-				} else if (message.startsWith("addmember")) {
+				} else if (args[1].equalsIgnoreCase("addmember") || args[1].equalsIgnoreCase("add")) {
 					if (!isMatchroom) {
 						channel.sendMessage("You need to be in an active matchroom to add a member!").queue();
 						return;
@@ -414,22 +485,34 @@ public class Paul extends ListenerAdapter{
 						return;
 					}
 					Category cat = guild.getCategoryById(matchroom.getCatID());
-					cat.createPermissionOverride(event.getMessage().getMentionedMembers().get(0)).grant(
-							Permission.VIEW_CHANNEL, 
-							Permission.MESSAGE_WRITE, 
-							Permission.VOICE_CONNECT,
-							Permission.VOICE_SPEAK
-					).queue(e -> {
-						MessageBuilder mb = new MessageBuilder();
-						mb.append(event.getMessage().getMentionedMembers().get(0));
-						mb.append(" has been added to this matchroom!");
-						channel.sendMessage(mb.build()).queue();
+					for (int i = 2; i < args.length; i++) {
+						if (args[i].startsWith("<@&")) {
+							continue;
+						}
+						if (args[i].startsWith("<@!")) {
+							args[i] = args[i].substring(3, args[i].length()-1);
+						}
 						try {
-							guild.moveVoiceMember(event.getMessage().getMentionedMembers().get(0), cat.getVoiceChannels().get(0)).queue();
-						} catch (IllegalStateException ex) {}
-					});
-					logger.log("INFO", member.getUser().getAsTag() + " has added " + event.getMessage().getMentionedMembers().get(0).getUser().getAsTag() + " to matchroom " + channel.getParent().getName());
-				} else if (message.startsWith("removemember")) {
+							Member player = guild.getMemberById(args[i]);
+							if (player != null) {
+								cat.putPermissionOverride(player).grant(
+										Permission.VIEW_CHANNEL, 
+										Permission.MESSAGE_WRITE, 
+										Permission.VOICE_CONNECT,
+										Permission.VOICE_SPEAK).queue(e -> {
+											MessageBuilder mb = new MessageBuilder();
+											mb.append(player.getUser().getAsMention());
+											mb.append(" has been added to this matchroom!");
+											channel.sendMessage(mb.build()).queue();
+											try {
+												guild.moveVoiceMember(player, cat.getVoiceChannels().get(0)).queue();
+											} catch (IllegalStateException ex) {}
+										});
+										logger.log("INFO", member.getUser().getAsTag() + " has added " + event.getMessage().getMentionedMembers().get(0).getUser().getAsTag() + " to matchroom " + channel.getParent().getName());
+							}
+						} catch (NumberFormatException e) {}
+					}
+				} else if (args[1].equalsIgnoreCase("removemember") || args[1].equalsIgnoreCase("remove") || args[1].equalsIgnoreCase("del") || args[1].equalsIgnoreCase("rem")) {
 					if (!isMatchroom) {
 						channel.sendMessage("You need to be in an active matchroom to remove a member!").queue();
 						return;
@@ -454,7 +537,7 @@ public class Paul extends ListenerAdapter{
 						} catch (IllegalStateException e) {}
 					}
 					logger.log("INFO", member.getUser().getAsTag() + " has removed " + event.getMessage().getMentionedMembers().get(0).getUser().getAsTag() + " from matchroom " + channel.getParent().getName());
-				} else if (message.startsWith("mute")) {
+				} else if (args[1].equalsIgnoreCase("mute")) {
 					if (!isMatchroom) {
 						channel.sendMessage("You need to be in an active matchroom to mute everyone!").queue();
 						return;
@@ -471,7 +554,7 @@ public class Paul extends ListenerAdapter{
 						}
 					}
 					logger.log("INFO", member.getUser().getAsTag() + " muted all members in matchroom " + channel.getParent().getName());
-				} else if (message.startsWith("unmute")) {
+				} else if (args[1].equalsIgnoreCase("unmute")) {
 					if (!isMatchroom) {
 						channel.sendMessage("You need to be in an active matchroom to unmute everyone!").queue();
 						return;
@@ -488,6 +571,26 @@ public class Paul extends ListenerAdapter{
 						}
 					}
 					logger.log("INFO", member.getUser().getAsTag() + " unmuted all members in matchroom " + channel.getParent().getName());
+				} else if (args[1].equalsIgnoreCase("clear")) {
+					if (!isMatchroom) {
+						channel.sendMessage("You need to be in an active matchroom to unmute everyone!").queue();
+						return;
+					}
+					if(!(matchroom.getCreatorID() == member.getIdLong()) && !hasAdminPermission) {
+						channel.sendMessage("This is not your matchroom and you are missing a role with the permission `matchroom.admin`!").queue();
+						return;
+					}
+					Category cat = guild.getCategoryById(matchroom.getCatID());
+					for (VoiceChannel vc : cat.getVoiceChannels()) {
+						for (Member mem : vc.getMembers()) {
+							if (mem.equals(member)) continue;
+							guild.kickVoiceMember(mem).queue();
+						}
+					}
+					for (PermissionOverride or : cat.getMemberPermissionOverrides()) {
+						if (or.getMember().equals(member)) continue;
+						or.delete().queue();
+					}
 				}
 			} else if (message.startsWith("settourney ")) {
 				message = message.substring(11);
@@ -498,8 +601,33 @@ public class Paul extends ListenerAdapter{
 					channel.sendMessage("Warning: Config could not be saved! Tell Ryeera he fucked up.").queue();
 				}
 				channel.sendMessage("The current tourney is now https://beatkhana.com/tournament/" + message).queue();
+			} else if (args[0].equalsIgnoreCase("help") || args[0].equalsIgnoreCase("h")) {
+				channel.sendMessage(getHelpEmbed()).queue();
 			}
 		}
+	}
+	
+	public static MessageEmbed getHelpEmbed() {
+		EmbedBuilder eb = new EmbedBuilder();
+		eb.setAuthor("Paul");
+		eb.setColor(0xFF9566);
+		eb.setFooter("I am watching...");
+		eb.setThumbnail("https://cdn.discordapp.com/avatars/708347348148813894/cc00ea2a73578af34b7dcdff5f92be1e.png");
+		eb.setTimestamp(Instant.now());
+		eb.setTitle("Paul Commands");
+		String prefix = config.getString("prefix").replace("<@!708347348148813894>", "@Paul ");
+		eb.setDescription("Here are all the commands you can use:");
+		eb.addField("__**Help**__", "**Usage:** `" + prefix + "help`\n**Description:** Shows this help-message.", false);
+		eb.addField("__**Matchrooms**__", "**Usage:** `" + prefix + "mr [subcommand]`\n**Description:** See subcommands below.\n**Aliases:** `" + prefix + "mr`", false);
+		eb.addField("__**Create Matchrooms**__", "**Usage:** `" + prefix + "mr create [name] [@mention] <@mention...>`\n**Description:** Creates a new matchroom with given names and anywhere from 1 to unlimited members that were pinged. Can also use the user-ID instead of pings.\n**Aliases:** `" + prefix + "mr make`", false);
+		eb.addField("__**Add Member to Matchroom**__", "**Usage:** `" + prefix + "mr addmember [@mention] <@mention...>`\n**Description:** Adds anywhere from 1 to unlimited members that were pinged to the matchroom. Can also use the user-ID instead of pings. Command has to be used in a matchroom!\n**Aliases:** `" + prefix + "mr add`", false);
+		eb.addField("__**Remove Member from Matchroom**__", "**Usage** `" + prefix + "mr removemember [@mention] <@mention...>`\n**Description:** Removes anywhere from 1 to unlimited members that were pinged to the matchroom. Can also use the user-ID instead of pings. Command has to be used in a matchroom!\n**Aliases:** `" + prefix + "mr remove`, `" + prefix + "mr rem`, `" + prefix + "mr del`", false);
+		eb.addField("__**Mute Matchroom**__", "**Usage:** `" + prefix + "mr mute`\n**Description:** Mutes all players in the matchroom.", false);
+		eb.addField("__**Unmute Matchroom**__", "**Usage:** `" + prefix + "mr unmute`\n**Description:** Unmutes all players in the matchroom.", false);
+		eb.addField("__**Clear Matchroom**__", "**Usage:** `" + prefix + "mr clear`\n**Description:** Removes all players from the matchroom.", false);
+		eb.addField("__**Close Matchrooms**__", "**Usage:** `" + prefix + "mr close`\n**Description:** Closes the matchroom, but doesn't delete it. Use this if not explicitly told to delete the matchroom!.", false);
+		eb.addField("__**Delete Matchrooms**__", "**Usage:** `" + prefix + "mr delete`\n**Description:** Deletes the matchroom. Use this only if explicitly told to delete the matchroom!.", false);
+		return eb.build();
 	}
 	
 	@Override
@@ -530,7 +658,7 @@ public class Paul extends ListenerAdapter{
 	}
 	
 	public static boolean removeMatchroom(String catID) {
-		if (isMatchroom(catID)) return false;
+		if (!isMatchroom(catID)) return false;
 		matchrooms.remove(catID);
 		try {
 			JSONUtils.writeJSON(matchrooms, matchroomFile);
