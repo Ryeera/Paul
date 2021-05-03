@@ -46,7 +46,7 @@ import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 public class Paul extends ListenerAdapter{
 	
-	private static final String VERSION = "0.3.0";
+	private static final String VERSION = "0.3.1";
 	
 	private static DragoLogger logger;
 	
@@ -249,18 +249,6 @@ public class Paul extends ListenerAdapter{
 		logger.log("INFO", "Paul started!");
 	}
 	
-	public void addReadPerms(Member member, Category category) {
-		category.putPermissionOverride(member).grant(EnumSet.of(
-				Permission.VIEW_CHANNEL, 
-				Permission.MESSAGE_WRITE, 
-				Permission.VOICE_CONNECT,
-				Permission.VOICE_SPEAK)).queue();
-	}
-	
-	public void removeReadPerms(Member member, Category category) {
-		category.getPermissionOverride(member).delete().queue();
-	}
-	
 	@Override
 	public void onGuildMessageReceived(GuildMessageReceivedEvent event) {
 		Guild guild = event.getGuild();
@@ -270,11 +258,6 @@ public class Paul extends ListenerAdapter{
 		if (message.startsWith(config.getString("prefix"))) {
 			message = message.substring(config.getString("prefix").length());
 			String [] args = message.split(" ");
-			//TODO: DEBUG
-			logger.log("DEBUG", "args = ");
-			for (String s : args) {
-				logger.log("DEBUG", s);
-			}
 			if (args[0].equalsIgnoreCase("matchroom") || args[0].equalsIgnoreCase("mr")) {
 				boolean hasCreatePermission = false;
 				for(Role role : createRoles) {
@@ -326,9 +309,9 @@ public class Paul extends ListenerAdapter{
 						}
 					}
 					ChannelAction<Category> action = guild.createCategory(channelname);
-					action.addPermissionOverride(guild.getPublicRole(), null, EnumSet.of(
+					action.addPermissionOverride(guild.getPublicRole(), EnumSet.of(Permission.VIEW_CHANNEL), EnumSet.of(
 							Permission.MANAGE_PERMISSIONS, 
-							Permission.VIEW_CHANNEL, 
+							Permission.MESSAGE_HISTORY,
 							Permission.MESSAGE_WRITE, 
 							Permission.MESSAGE_MANAGE, 
 							Permission.VOICE_CONNECT,
@@ -340,11 +323,13 @@ public class Paul extends ListenerAdapter{
 					for(Role role : readRoles) {
 						action.addPermissionOverride(role, EnumSet.of(
 								Permission.VIEW_CHANNEL, 
+								Permission.MESSAGE_HISTORY,
 								Permission.VOICE_CONNECT), null);
 					}
 					for(Role role : writeRoles) {
 						action.addPermissionOverride(role, EnumSet.of(
 								Permission.VIEW_CHANNEL, 
+								Permission.MESSAGE_HISTORY,
 								Permission.MESSAGE_WRITE, 
 								Permission.VOICE_SPEAK), null);
 					}
@@ -352,6 +337,7 @@ public class Paul extends ListenerAdapter{
 						action.addPermissionOverride(role, EnumSet.of(
 								Permission.MANAGE_PERMISSIONS, 
 								Permission.VIEW_CHANNEL, 
+								Permission.MESSAGE_HISTORY,
 								Permission.MESSAGE_WRITE, 
 								Permission.MESSAGE_MANAGE, 
 								Permission.VOICE_CONNECT, 
@@ -363,6 +349,7 @@ public class Paul extends ListenerAdapter{
 					}
 					action.addPermissionOverride(member, EnumSet.of(
 							Permission.VIEW_CHANNEL, 
+							Permission.MESSAGE_HISTORY,
 							Permission.MESSAGE_WRITE, 
 							Permission.MESSAGE_MANAGE,
 							Permission.VOICE_CONNECT,
@@ -384,6 +371,7 @@ public class Paul extends ListenerAdapter{
 							if (player != null) {
 								action.addPermissionOverride(player, EnumSet.of(
 										Permission.VIEW_CHANNEL, 
+										Permission.MESSAGE_HISTORY,
 										Permission.MESSAGE_WRITE, 
 										Permission.VOICE_CONNECT,
 										Permission.VOICE_SPEAK), null);
@@ -471,7 +459,7 @@ public class Paul extends ListenerAdapter{
 						jda.getTextChannelById(config.getString("log-channel")).sendMessage(member.getAsMention() + " has deleted the matchroom `" + cat.getName() + "`").queue();
 					});
 					logger.log("INFO", member.getUser().getAsTag() + " deleted matchroom " + channel.getParent().getName());
-				} else if (args[1].equalsIgnoreCase("addmember") || args[1].equalsIgnoreCase("add")) {
+				} else if (args[1].equalsIgnoreCase("addmember") || args[1].equalsIgnoreCase("add") || args[1].equalsIgnoreCase("am")) {
 					if (!isMatchroom) {
 						channel.sendMessage("You need to be in an active matchroom to add a member!").queue();
 						return;
@@ -497,6 +485,7 @@ public class Paul extends ListenerAdapter{
 							if (player != null) {
 								cat.putPermissionOverride(player).grant(
 										Permission.VIEW_CHANNEL, 
+										Permission.MESSAGE_HISTORY,
 										Permission.MESSAGE_WRITE, 
 										Permission.VOICE_CONNECT,
 										Permission.VOICE_SPEAK).queue(e -> {
@@ -512,7 +501,7 @@ public class Paul extends ListenerAdapter{
 							}
 						} catch (NumberFormatException e) {}
 					}
-				} else if (args[1].equalsIgnoreCase("removemember") || args[1].equalsIgnoreCase("remove") || args[1].equalsIgnoreCase("del") || args[1].equalsIgnoreCase("rem")) {
+				} else if (args[1].equalsIgnoreCase("removemember") || args[1].equalsIgnoreCase("remove") || args[1].equalsIgnoreCase("rm")) {
 					if (!isMatchroom) {
 						channel.sendMessage("You need to be in an active matchroom to remove a member!").queue();
 						return;
@@ -537,7 +526,7 @@ public class Paul extends ListenerAdapter{
 						} catch (IllegalStateException e) {}
 					}
 					logger.log("INFO", member.getUser().getAsTag() + " has removed " + event.getMessage().getMentionedMembers().get(0).getUser().getAsTag() + " from matchroom " + channel.getParent().getName());
-				} else if (args[1].equalsIgnoreCase("mute")) {
+				} else if (args[1].equalsIgnoreCase("mute") || args[1].equalsIgnoreCase("m")) {
 					if (!isMatchroom) {
 						channel.sendMessage("You need to be in an active matchroom to mute everyone!").queue();
 						return;
@@ -554,7 +543,7 @@ public class Paul extends ListenerAdapter{
 						}
 					}
 					logger.log("INFO", member.getUser().getAsTag() + " muted all members in matchroom " + channel.getParent().getName());
-				} else if (args[1].equalsIgnoreCase("unmute")) {
+				} else if (args[1].equalsIgnoreCase("unmute") || args[1].equalsIgnoreCase("um")) {
 					if (!isMatchroom) {
 						channel.sendMessage("You need to be in an active matchroom to unmute everyone!").queue();
 						return;
@@ -592,15 +581,23 @@ public class Paul extends ListenerAdapter{
 						or.delete().queue();
 					}
 				}
-			} else if (message.startsWith("settourney ")) {
-				message = message.substring(11);
-				config.put("tourney", message);
-				try {
-					JSONUtils.writeJSON(config, configFile);
-				} catch (FileNotFoundException e) {
-					channel.sendMessage("Warning: Config could not be saved! Tell Ryeera he fucked up.").queue();
+			} else if (args[0].equalsIgnoreCase("settourney") || args[0].equalsIgnoreCase("st")) {
+				boolean hasAdminPermission = false;
+				for(Role role : adminRoles) {
+					if(member.getRoles().contains(role)) {
+						hasAdminPermission = true;
+						break;
+					}
 				}
-				channel.sendMessage("The current tourney is now https://beatkhana.com/tournament/" + message).queue();
+				if (hasAdminPermission) {
+					config.put("tourney", args[1]);
+					try {
+						JSONUtils.writeJSON(config, configFile);
+					} catch (FileNotFoundException e) {
+						channel.sendMessage("Warning: Config could not be saved! Tell Ryeera he fucked up.").queue();
+					}
+					channel.sendMessage("The current tourney is now https://beatkhana.com/tournament/" + args[1]).queue();
+				}
 			} else if (args[0].equalsIgnoreCase("help") || args[0].equalsIgnoreCase("h")) {
 				channel.sendMessage(getHelpEmbed()).queue();
 			}
@@ -620,10 +617,10 @@ public class Paul extends ListenerAdapter{
 		eb.addField("__**Help**__", "**Usage:** `" + prefix + "help`\n**Description:** Shows this help-message.", false);
 		eb.addField("__**Matchrooms**__", "**Usage:** `" + prefix + "mr [subcommand]`\n**Description:** See subcommands below.\n**Aliases:** `" + prefix + "mr`", false);
 		eb.addField("__**Create Matchrooms**__", "**Usage:** `" + prefix + "mr create [name] [@mention] <@mention...>`\n**Description:** Creates a new matchroom with given names and anywhere from 1 to unlimited members that were pinged. Can also use the user-ID instead of pings.\n**Aliases:** `" + prefix + "mr make`", false);
-		eb.addField("__**Add Member to Matchroom**__", "**Usage:** `" + prefix + "mr addmember [@mention] <@mention...>`\n**Description:** Adds anywhere from 1 to unlimited members that were pinged to the matchroom. Can also use the user-ID instead of pings. Command has to be used in a matchroom!\n**Aliases:** `" + prefix + "mr add`", false);
-		eb.addField("__**Remove Member from Matchroom**__", "**Usage** `" + prefix + "mr removemember [@mention] <@mention...>`\n**Description:** Removes anywhere from 1 to unlimited members that were pinged to the matchroom. Can also use the user-ID instead of pings. Command has to be used in a matchroom!\n**Aliases:** `" + prefix + "mr remove`, `" + prefix + "mr rem`, `" + prefix + "mr del`", false);
-		eb.addField("__**Mute Matchroom**__", "**Usage:** `" + prefix + "mr mute`\n**Description:** Mutes all players in the matchroom.", false);
-		eb.addField("__**Unmute Matchroom**__", "**Usage:** `" + prefix + "mr unmute`\n**Description:** Unmutes all players in the matchroom.", false);
+		eb.addField("__**Add Member to Matchroom**__", "**Usage:** `" + prefix + "mr addmember [@mention] <@mention...>`\n**Description:** Adds anywhere from 1 to unlimited members that were pinged to the matchroom. Can also use the user-ID instead of pings. Command has to be used in a matchroom!\n**Aliases:** `" + prefix + "mr add`, `" + prefix + "mr am`", false);
+		eb.addField("__**Remove Member from Matchroom**__", "**Usage** `" + prefix + "mr removemember [@mention] <@mention...>`\n**Description:** Removes anywhere from 1 to unlimited members that were pinged to the matchroom. Can also use the user-ID instead of pings. Command has to be used in a matchroom!\n**Aliases:** `" + prefix + "mr remove`, `" + prefix + "mr rm`", false);
+		eb.addField("__**Mute Matchroom**__", "**Usage:** `" + prefix + "mr mute`\n**Description:** Mutes all players in the matchroom.\n**Aliases:** `" + prefix + "mr m`", false);
+		eb.addField("__**Unmute Matchroom**__", "**Usage:** `" + prefix + "mr unmute`\n**Description:** Unmutes all players in the matchroom.\n**Aliases:** `" + prefix + "mr um`", false);
 		eb.addField("__**Clear Matchroom**__", "**Usage:** `" + prefix + "mr clear`\n**Description:** Removes all players from the matchroom.", false);
 		eb.addField("__**Close Matchrooms**__", "**Usage:** `" + prefix + "mr close`\n**Description:** Closes the matchroom, but doesn't delete it. Use this if not explicitly told to delete the matchroom!.", false);
 		eb.addField("__**Delete Matchrooms**__", "**Usage:** `" + prefix + "mr delete`\n**Description:** Deletes the matchroom. Use this only if explicitly told to delete the matchroom!.", false);
