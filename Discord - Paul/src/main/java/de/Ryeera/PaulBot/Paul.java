@@ -46,7 +46,7 @@ import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 public class Paul extends ListenerAdapter{
 	
-	private static final String VERSION = "0.3.1";
+	private static final String VERSION = "0.3.2";
 	
 	private static DragoLogger logger;
 	
@@ -440,8 +440,8 @@ public class Paul extends ListenerAdapter{
 						channel.sendMessage("You need to be in an active matchroom to delete it!").queue();
 						return;
 					}
-					if (!hasAdminPermission) {
-						channel.sendMessage("You are missing a role with the permission `matchroom.admin`!").queue();
+					if (!(matchroom.getCreatorID() == member.getIdLong()) && !hasAdminPermission) {
+						channel.sendMessage("This is not your matchroom and you are missing a role with the permission `matchroom.admin`!").queue();
 						return;
 					}
 					channel.sendMessage("Deleting Matchroom...").queue(e -> {
