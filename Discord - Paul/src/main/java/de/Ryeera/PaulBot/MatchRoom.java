@@ -2,31 +2,34 @@ package de.Ryeera.PaulBot;
 
 public class MatchRoom {
 
-	private String catID;
-	private long creatorID;
-	private String creatorName;
-	private String created;
-	
-	public MatchRoom(String catID, long creatorID, String creatorName, String created) {
-		this.catID = catID;
-		this.creatorID = creatorID;
-		this.creatorName = creatorName;
-		this.created = created;
-	}
+    private final String catID;
+    private final long creatorID;
+    private final String creatorName;
+    private final String created;
 
-	public String getCatID() {
-		return catID;
-	}
+    public MatchRoom(String catID,
+                     long creatorID,
+                     String creatorName,
+                     String created) {
+        this.catID = catID;
+        this.creatorID = creatorID;
+        this.creatorName = creatorName;
+        this.created = created;
+    }
 
-	public long getCreatorID() {
-		return creatorID;
-	}
+    public String getCatID() {
+        return catID;
+    }
 
-	public String getCreatorName() {
-		return creatorName;
-	}
+    public long getCreatorID() {
+        return creatorID;
+    }
 
-	public String getCreated() {
-		return created;
-	}
+    public String getCreatorName() {
+        return creatorName;
+    }
+
+    public String getCreated() {
+        return created;
+    }
 }
