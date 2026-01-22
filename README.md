@@ -1,4 +1,4 @@
-# Argus
+# Paul
 I didn't feel like making a description yet... Everyone knows Paul anyways, right?
 
 ## Commands
